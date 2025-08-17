@@ -7,14 +7,14 @@ import seaborn as sns
 from sklearn.model_selection import StratifiedShuffleSplit,cross_val_score
 from sklearn.preprocessing import StandardScaler,OneHotEncoder
 from sklearn.impute import SimpleImputer
-from sklearn.metrics import accuracy_score,classification_report,root_mean_squared_error
+from sklearn.metrics import accuracy_score,classification_report,root_mean_squared_error,confusion_matrix,roc_auc_score,roc_curve,auc
 from sklearn.ensemble import RandomForestClassifier,RandomForestRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.pipeline import Pipeline
 from sklearn.compose import ColumnTransformer
 from sklearn.model_selection import GridSearchCV,RandomizedSearchCV
-from lightgbm import LGBMRegressor
+from lightgbm import LGBMClassifier
 
 
 MODEL_FILE = 'model.pkl'
@@ -57,8 +57,39 @@ if not os.path.exists(MODEL_FILE):
     cat_attrib = ["gender","smoking_history"]
     new_pipeline = Builded_pipeline(num_attrib,cat_attrib)
     diabetes_data_transformed = new_pipeline.fit_transform(train_feature)
-    model =  LGBMRegressor(n_estimators=100,min_samples_split=10,min_samples_leaf=2,max_depth=5,random_state=42)
+    test_data_transformed = new_pipeline.transform(test_feature)
+    model =  LGBMClassifier(n_estimators=100,min_samples_split=10,min_samples_leaf=2,max_depth=5,random_state=42)
     model.fit(diabetes_data_transformed,train_label)
+    y_pred = model.predict(test_data_transformed)
+    y_prob = model.predict_proba(test_data_transformed)[:, 1]
+
+    # 1. Classification report
+    print("\nClassification Report:\n")
+    print(classification_report(test_label, y_pred))
+
+    # 2. Confusion Matrix
+    cm = confusion_matrix(test_label, y_pred)
+    plt.figure(figsize=(5,4))
+    sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=[0,1], yticklabels=[0,1])
+    plt.title("Confusion Matrix")
+    plt.xlabel("Predicted")
+    plt.ylabel("Actual")
+    plt.savefig("confusion_matrix.png")
+    plt.close()
+
+    
+    fpr, tpr, thresholds = roc_curve(test_label, y_prob)
+    roc_auc = auc(fpr, tpr)
+    plt.figure(figsize=(6,5))
+    plt.plot(fpr, tpr, label=f'AUC = {roc_auc:.2f}')
+    plt.plot([0,1], [0,1], 'r--')
+    plt.xlabel("False Positive Rate")
+    plt.ylabel("True Positive Rate")
+    plt.title("ROC Curve")
+    plt.legend()
+    plt.savefig("roc_curve.png")
+    plt.close()
+
     joblib.dump(model,MODEL_FILE)
     joblib.dump(new_pipeline,PIPELINE_FILE)
     print("MODEL HAS BEEN TRAINED")
